@@ -18,6 +18,7 @@ import torch.distributed as dist
 
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.utils import accuracy, AverageMeter
+from torch.utils.tensorboard import SummaryWriter
 
 from config import get_config
 from models import build_model
@@ -136,16 +137,26 @@ def main(config):
         throughput(data_loader_val, model, logger)
         return
 
+    validation_accuracy = np.zeros(config.TRAIN.EPOCHS + 1, dtype=np.float32)
+
     logger.info("Start training")
     start_time = time.time()
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
         data_loader_train.sampler.set_epoch(epoch)
 
-        train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn, lr_scheduler)
-        if dist.get_rank() == 0 and (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1)):
-            save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger)
+        writer = SummaryWriter(log_dir=os.path.join(config.OUTPUT, 'tensorboard_logs'))
 
+        lr, train_loss_avg = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn, lr_scheduler, writer)
+        writer.add_scalar('Learning Rate', scalar_value=lr, global_step=epoch)
+        writer.add_scalar('Training Loss', scalar_value=train_loss_avg, global_step=epoch)
         acc1, acc5, loss = validate(config, data_loader_val, model)
+        writer.add_scalar('Validation Top-1 Acc', scalar_value=acc1, global_step=epoch)
+        writer.add_scalar('Validation Top-5 Acc', scalar_value=acc5, global_step=epoch)
+        validation_accuracy[epoch] = acc1
+        top_10_epochs = np.argsort(validation_accuracy)[-10:]
+
+        if dist.get_rank() == 0 and (epoch in top_10_epochs or epoch == (config.TRAIN.EPOCHS - 1)):
+            save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger)
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
         max_accuracy = max(max_accuracy, acc1)
         logger.info(f'Max accuracy: {max_accuracy:.2f}%')
@@ -153,9 +164,11 @@ def main(config):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
+    top_10_epochs = np.argsort(validation_accuracy)[:10]
+    logger.info('Top 10 epochs: %s' % str(top_10_epochs))
 
 
-def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler):
+def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, writer):
     model.train()
     optimizer.zero_grad()
 
@@ -234,6 +247,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'mem {memory_used:.0f}MB')
     epoch_time = time.time() - start
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
+    return optimizer.param_groups[0]['lr'], loss_meter.avg
 
 
 @torch.no_grad()
