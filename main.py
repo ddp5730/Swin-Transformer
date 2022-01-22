@@ -145,7 +145,7 @@ def main(config):
         throughput(data_loader_val, model, logger)
         return
 
-    validation_accuracy = np.zeros(config.TRAIN.EPOCHS + 1, dtype=np.float32)
+    validation_accuracy = np.zeros(config.TRAIN.EPOCHS, dtype=np.float32)
 
     logger.info("Start training")
     start_time = time.time()
@@ -154,16 +154,18 @@ def main(config):
 
         writer = SummaryWriter(log_dir=os.path.join(config.OUTPUT, 'tensorboard_logs'))
 
-        lr, train_loss_avg = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn, lr_scheduler, writer)
+        lr, train_loss_avg = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn,
+                                             lr_scheduler, writer)
         writer.add_scalar('Learning Rate', scalar_value=lr, global_step=epoch)
         writer.add_scalar('Training Loss', scalar_value=train_loss_avg, global_step=epoch)
         acc1, acc5, loss = validate(config, data_loader_val, model)
         writer.add_scalar('Validation Top-1 Acc', scalar_value=acc1, global_step=epoch)
         writer.add_scalar('Validation Top-5 Acc', scalar_value=acc5, global_step=epoch)
         validation_accuracy[epoch] = acc1
-        top_10_epochs = np.argsort(validation_accuracy)[-10:]
+        top_10_epochs = np.flip(np.argsort(validation_accuracy))[:10]
 
         if dist.get_rank() == 0 and (epoch in top_10_epochs or epoch == (config.TRAIN.EPOCHS - 1)):
+            print_top_epochs(validation_accuracy)
             save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger)
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
         max_accuracy = max(max_accuracy, acc1)
@@ -172,9 +174,15 @@ def main(config):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
-    top_10_epochs = np.argsort(validation_accuracy)[-10:0]
-    logger.info('Top 10 epochs: %s' % str(top_10_epochs))
-    logger.info
+    print_top_epochs(validation_accuracy)
+
+
+def print_top_epochs(validation_accuracy):
+    top_10_epochs = np.flip(np.argsort(validation_accuracy))[:10]
+    for i in range(top_10_epochs.size):
+        epoch_num = top_10_epochs[i]
+        epoch_accuracy = validation_accuracy[epoch_num]
+        logger.info('%d: Epoch: %d, Acc1: %.3f%%' % (i, epoch_num, epoch_accuracy))
 
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, writer):
