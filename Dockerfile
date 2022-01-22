@@ -9,3 +9,4 @@ RUN cd apex && pip3 install -v --disable-pip-version-check --no-cache-dir --glob
 RUN pip3 install timm
 RUN pip3 install opencv-python==4.4.0.46 termcolor==1.1.0 yacs==0.1.8
 RUN pip3 install google protobuf
+RUN pip3 install tensorboard

@@ -11,11 +11,20 @@ from .swin_mlp import SwinMLP
 
 def build_model(config):
     model_type = config.MODEL.TYPE
+
+    # If number of classes in source is different from target datasets, build model with number of source classes.
+    # This way pretrained weights can be loaded and the final classification layer can be replaced later in
+    # the code
+    if config.MODEL.NUM_CLASSES == config.MODEL.SOURCE_NUM_CLASSES:
+        num_classes = config.MODEL.NUM_CLASSES
+    else:
+        num_classes = config.MODEL.SOURCE_NUM_CLASSES
+
     if model_type == 'swin':
         model = SwinTransformer(img_size=config.DATA.IMG_SIZE,
                                 patch_size=config.MODEL.SWIN.PATCH_SIZE,
                                 in_chans=config.MODEL.SWIN.IN_CHANS,
-                                num_classes=config.MODEL.NUM_CLASSES,
+                                num_classes=num_classes,
                                 embed_dim=config.MODEL.SWIN.EMBED_DIM,
                                 depths=config.MODEL.SWIN.DEPTHS,
                                 num_heads=config.MODEL.SWIN.NUM_HEADS,
@@ -32,7 +41,7 @@ def build_model(config):
         model = SwinMLP(img_size=config.DATA.IMG_SIZE,
                         patch_size=config.MODEL.SWIN_MLP.PATCH_SIZE,
                         in_chans=config.MODEL.SWIN_MLP.IN_CHANS,
-                        num_classes=config.MODEL.NUM_CLASSES,
+                        num_classes=num_classes,
                         embed_dim=config.MODEL.SWIN_MLP.EMBED_DIM,
                         depths=config.MODEL.SWIN_MLP.DEPTHS,
                         num_heads=config.MODEL.SWIN_MLP.NUM_HEADS,

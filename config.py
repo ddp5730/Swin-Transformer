@@ -51,6 +51,8 @@ _C.MODEL.NAME = 'swin_tiny_patch4_window7_224'
 _C.MODEL.PRETRAINED = ''
 # Checkpoint to resume, could be overwritten by command line argument
 _C.MODEL.RESUME = ''
+# Number of classes in source model.  Used for transfer learning on new dataset.
+_C.SOURCE_NUM_CLASSES = 1000
 # Number of classes, overwritten in data preparation
 _C.MODEL.NUM_CLASSES = 1000
 # Dropout rate

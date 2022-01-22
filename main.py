@@ -66,6 +66,8 @@ def parse_option():
     parser.add_argument('--tag', help='tag of experiment')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--throughput', action='store_true', help='Test throughput only')
+    parser.add_argument('--transfer-dataset', action='store_false', help='Transfer the model to a new dataset')
+    # TODO: See if TransFG modifies model in any other way when performing transfer
 
     # distributed training
     parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
@@ -164,8 +166,9 @@ def main(config):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
-    top_10_epochs = np.argsort(validation_accuracy)[:10]
+    top_10_epochs = np.argsort(validation_accuracy)[-10:0]
     logger.info('Top 10 epochs: %s' % str(top_10_epochs))
+    logger.info
 
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, writer):

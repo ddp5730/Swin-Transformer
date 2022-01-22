@@ -104,6 +104,13 @@ def build_dataset(is_train, config):
         nb_classes = 1000
     elif config.DATA.DATASET == 'imagenet22K':
         raise NotImplementedError("Imagenet-22K will come soon.")
+    elif config.DATA.DATASET == 'cub200-2011':
+        prefix = 'train' if is_train else 'val'
+        root = os.path.join(config.DATA.DATA_PATH, prefix)
+        # TODO: Verify transform conforms to same method as TransFG
+        # RandomCrop vs Resize + Interpolation, etc.
+        dataset = datasets.ImageFolder(root, transform=transform)
+        nb_classes = 200
     else:
         raise NotImplementedError("We only support ImageNet Now.")
 

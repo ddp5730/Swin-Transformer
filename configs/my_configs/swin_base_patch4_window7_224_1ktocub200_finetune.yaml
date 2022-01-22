@@ -1,8 +1,11 @@
+DATA:
+  DATASET: cub200-2011
 MODEL:
   TYPE: swin
   NAME: swin_base_patch4_window7_224_1ktocub200_finetune
   DROP_PATH_RATE: 0.2
-  NUM_CLASSES: 1000
+  SOURCE_NUM_CLASSES: 1000
+  NUM_CLASSES: 200
   SWIN:
     EMBED_DIM: 128
     DEPTHS: [ 2, 2, 18, 2 ]
