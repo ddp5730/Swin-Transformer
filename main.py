@@ -146,13 +146,12 @@ def main(config):
         return
 
     validation_accuracy = np.zeros(config.TRAIN.EPOCHS, dtype=np.float32)
+    writer = SummaryWriter(log_dir=os.path.join(config.OUTPUT, 'tensorboard_logs'))
 
     logger.info("Start training")
     start_time = time.time()
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
         data_loader_train.sampler.set_epoch(epoch)
-
-        writer = SummaryWriter(log_dir=os.path.join(config.OUTPUT, 'tensorboard_logs'))
 
         lr, train_loss_avg = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn,
                                              lr_scheduler, writer)
