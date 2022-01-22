@@ -6,6 +6,8 @@
 # --------------------------------------------------------
 
 import os
+
+import numpy as np
 import torch
 import torch.distributed as dist
 from torch import nn
@@ -143,7 +145,7 @@ def replace_fc_layer(config, model):
     model.head = nn.Linear(input_features, output_classes)
 
 
-def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger):
+def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, validation_accuracy):
     save_state = {'model': model.state_dict(),
                   'optimizer': optimizer.state_dict(),
                   'lr_scheduler': lr_scheduler.state_dict(),
@@ -157,6 +159,16 @@ def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler,
     logger.info(f"{save_path} saving......")
     torch.save(save_state, save_path)
     logger.info(f"{save_path} saved !!!")
+
+    # Check if saved checkpoint is no longer in top-10
+    top_10_epochs = np.flip(np.argsort(validation_accuracy))[:10]
+    for file in os.listdir(config.OUTPUT):
+        if 'ckpt_epoch' in file:
+            epoch_num = file[11:file.find('.')]
+            epoch_num = int(epoch_num)
+            if epoch_num not in top_10_epochs:
+                os.remove(os.path.join(config.OUTPUT, file))
+
 
 
 def get_grad_norm(parameters, norm_type=2):

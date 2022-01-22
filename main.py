@@ -166,7 +166,8 @@ def main(config):
 
         if dist.get_rank() == 0 and (epoch in top_10_epochs or epoch == (config.TRAIN.EPOCHS - 1)):
             print_top_epochs(validation_accuracy)
-            save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger)
+            save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger,
+                            validation_accuracy)
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
         max_accuracy = max(max_accuracy, acc1)
         logger.info(f'Max accuracy: {max_accuracy:.2f}%')
@@ -182,7 +183,7 @@ def print_top_epochs(validation_accuracy):
     for i in range(top_10_epochs.size):
         epoch_num = top_10_epochs[i]
         epoch_accuracy = validation_accuracy[epoch_num]
-        logger.info('%d: Epoch: %d, Acc1: %.3f%%' % (i, epoch_num, epoch_accuracy))
+        logger.info('Rank %d: Epoch: %d, Acc1: %.3f%%' % (i+1, epoch_num, epoch_accuracy))
 
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, writer):
