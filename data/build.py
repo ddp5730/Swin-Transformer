@@ -107,7 +107,6 @@ def build_dataset(is_train, config):
     elif config.DATA.DATASET == 'cub200-2011':
         prefix = 'train' if is_train else 'val'
         root = os.path.join(config.DATA.DATA_PATH, prefix)
-        # TODO: Verify transform conforms to same method as TransFG
         # RandomCrop vs Resize + Interpolation, etc.
         dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 200

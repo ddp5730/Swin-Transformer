@@ -26,7 +26,8 @@ from data import build_loader
 from lr_scheduler import build_scheduler
 from optimizer import build_optimizer
 from logger import create_logger
-from utils import load_checkpoint, load_pretrained, save_checkpoint, get_grad_norm, auto_resume_helper, reduce_tensor
+from utils import load_checkpoint, load_pretrained, save_checkpoint, get_grad_norm, auto_resume_helper, reduce_tensor, \
+    replace_fc_layer
 
 try:
     # noinspection PyUnresolvedReferences
@@ -66,8 +67,9 @@ def parse_option():
     parser.add_argument('--tag', help='tag of experiment')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--throughput', action='store_true', help='Test throughput only')
-    parser.add_argument('--transfer-dataset', action='store_false', help='Transfer the model to a new dataset')
+    parser.add_argument('--transfer-dataset', action='store_true', help='Transfer the model to a new dataset')
     # TODO: See if TransFG modifies model in any other way when performing transfer
+    # Doesn't look like it, but I'm not ready to rule it out yet.
 
     # distributed training
     parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
@@ -86,6 +88,15 @@ def main(config):
     model = build_model(config)
     model.cuda()
     logger.info(str(model))
+
+    if config.MODEL.PRETRAINED and (not config.MODEL.RESUME):
+        load_pretrained(config, model, logger)
+        acc1, acc5, loss = validate(config, data_loader_val, model)
+        logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
+
+    if config.TRAIN.TRANSFER_DATASET:
+        replace_fc_layer(config, model)
+        model.cuda()
 
     optimizer = build_optimizer(config, model)
     if config.AMP_OPT_LEVEL != "O0":
@@ -129,11 +140,6 @@ def main(config):
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
         if config.EVAL_MODE:
             return
-
-    if config.MODEL.PRETRAINED and (not config.MODEL.RESUME):
-        load_pretrained(config, model_without_ddp, logger)
-        acc1, acc5, loss = validate(config, data_loader_val, model)
-        logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
 
     if config.THROUGHPUT_MODE:
         throughput(data_loader_val, model, logger)

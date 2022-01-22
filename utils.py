@@ -8,6 +8,7 @@
 import os
 import torch
 import torch.distributed as dist
+from torch import nn
 
 try:
     # noinspection PyUnresolvedReferences
@@ -131,6 +132,15 @@ def load_pretrained(config, model, logger):
 
     del checkpoint
     torch.cuda.empty_cache()
+
+
+def replace_fc_layer(config, model):
+    """
+    Replaces the fc of the model with the target dataset number of output classes and re-initializes weights
+    """
+    output_classes = config.MODEL.NUM_CLASSES
+    input_features = model.head.in_features
+    model.head = nn.Linear(input_features, output_classes)
 
 
 def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger):

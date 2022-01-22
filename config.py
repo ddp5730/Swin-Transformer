@@ -52,7 +52,7 @@ _C.MODEL.PRETRAINED = ''
 # Checkpoint to resume, could be overwritten by command line argument
 _C.MODEL.RESUME = ''
 # Number of classes in source model.  Used for transfer learning on new dataset.
-_C.SOURCE_NUM_CLASSES = 1000
+_C.MODEL.SOURCE_NUM_CLASSES = 1000
 # Number of classes, overwritten in data preparation
 _C.MODEL.NUM_CLASSES = 1000
 # Dropout rate
@@ -163,6 +163,8 @@ _C.TEST = CN()
 _C.TEST.CROP = True
 # Whether to use SequentialSampler as validation sampler
 _C.TEST.SEQUENTIAL = False
+# Whether to transfer this model from one dataset to another
+_C.TRANSFER_DATASET = False
 
 # -----------------------------------------------------------------------------
 # Misc
@@ -237,6 +239,8 @@ def update_config(config, args):
         config.EVAL_MODE = True
     if args.throughput:
         config.THROUGHPUT_MODE = True
+    if args.transfer_dataset:
+        config.TRAIN.TRANSFER_DATASET = True
 
     # set local rank for distributed training
     config.LOCAL_RANK = args.local_rank
