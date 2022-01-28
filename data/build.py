@@ -110,6 +110,18 @@ def build_dataset(is_train, config):
         # RandomCrop vs Resize + Interpolation, etc.
         dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 200
+    elif config.DATA.DATASET == 'rareplanes-synth':
+        prefix = 'train' if is_train else 'validation'
+        root = os.path.join(config.DATA.DATA_PATH, prefix)
+        # RandomCrop vs Resize + Interpolation, etc.
+        dataset = datasets.ImageFolder(root, transform=transform)
+        nb_classes = 3
+    elif config.DATA.DATASET == 'rareplanes-real':
+        prefix = 'train' if is_train else 'test'
+        root = os.path.join(config.DATA.DATA_PATH, prefix)
+        # RandomCrop vs Resize + Interpolation, etc.
+        dataset = datasets.ImageFolder(root, transform=transform)
+        nb_classes = 3
     else:
         raise NotImplementedError("We only support ImageNet Now.")
 
