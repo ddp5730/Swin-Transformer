@@ -54,7 +54,8 @@ def build_loader(config):
         )
 
     if config.TEST.SEQUENTIAL:
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        #TODO: Use RandomSampler only when doing visualization task
+        sampler_val = torch.utils.data.RandomSampler(dataset_val)
     else:
         sampler_val = torch.utils.data.distributed.DistributedSampler(
             dataset_val, shuffle=False
