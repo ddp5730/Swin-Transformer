@@ -200,6 +200,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
     eval_time = 0
     eval_num = 1
+    evaluation_accuracies = []
 
     start = time.time()
     end = time.time()
@@ -274,6 +275,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
         if config.TRAIN.EVAL_PERIOD != -1 and (idx + 1) % config.TRAIN.EVAL_PERIOD == 0:
             eval_start = time.time()
             acc1, acc5, loss = validate(config, data_loader_val, model)
+            evaluation_accuracies.append(acc1)
             save_checkpoint(config, epoch, model_without_ddp, acc1, optimizer, lr_scheduler, logger, eval_num=eval_num)
             eval_num += 1
             eval_time += time.time() - eval_start
@@ -281,6 +283,11 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     epoch_time = time.time() - start - eval_time
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
     logger.info(f"EPOCH {epoch} evaluation takes {datetime.timedelta(seconds=int(eval_time))}")
+
+    if config.TRAIN.EVAL_PERIOD != -1:
+        for idx in range(len(evaluation_accuracies)):
+            logger.info('Eval %d Acc1: %.2f' % (idx + 1, evaluation_accuracies[idx] * 100))
+
     return optimizer.param_groups[0]['lr'], loss_meter.avg
 
 
