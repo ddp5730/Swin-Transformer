@@ -286,7 +286,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
     if config.TRAIN.EVAL_PERIOD != -1:
         for idx in range(len(evaluation_accuracies)):
-            logger.info('Eval %d Acc1: %.2f' % (idx + 1, evaluation_accuracies[idx] * 100))
+            logger.info('Eval %d Acc1: %.2f' % (idx + 1, evaluation_accuracies[idx]))
 
     return optimizer.param_groups[0]['lr'], loss_meter.avg
 
