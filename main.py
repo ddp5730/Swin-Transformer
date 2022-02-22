@@ -70,6 +70,9 @@ def parse_option():
     parser.add_argument('--transfer-dataset', action='store_true', help='Transfer the model to a new dataset')
     # TODO: See if TransFG modifies model in any other way when performing transfer
     # Doesn't look like it, but I'm not ready to rule it out yet.
+    parser.add_argument('--eval-period', type=int, default=-1, help='Number of epochs to train before evaluating '
+                                                                    'model performance.  -1 to evaluate after epoch '
+                                                                    'complete')
 
     # distributed training
     parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
@@ -195,9 +198,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     loss_meter = AverageMeter()
     norm_meter = AverageMeter()
 
-    eval_every = 100
-    eval_num = 1
     eval_time = 0
+    eval_num = 1
 
     start = time.time()
     end = time.time()
@@ -269,7 +271,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'grad_norm {norm_meter.val:.4f} ({norm_meter.avg:.4f})\t'
                 f'mem {memory_used:.0f}MB')
 
-        if (idx + 1) % eval_every == 0:
+        if config.TRAIN.EVAL_PERIOD != -1 and (idx + 1) % config.TRAIN.EVAL_PERIOD == 0:
             eval_start = time.time()
             acc1, acc5, loss = validate(config, data_loader_val, model)
             save_checkpoint(config, epoch, model_without_ddp, acc1, optimizer, lr_scheduler, logger, eval_num=eval_num)
@@ -278,6 +280,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
     epoch_time = time.time() - start - eval_time
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
+    logger.info(f"EPOCH {epoch} evaluation takes {datetime.timedelta(seconds=int(eval_time))}")
     return optimizer.param_groups[0]['lr'], loss_meter.avg
 
 

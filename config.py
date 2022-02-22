@@ -241,6 +241,8 @@ def update_config(config, args):
         config.THROUGHPUT_MODE = True
     if args.transfer_dataset:
         config.TRAIN.TRANSFER_DATASET = True
+    if args.eval_period:
+        config.TRAIN.EVAL_PERIOD = args.eval_period
 
     # set local rank for distributed training
     config.LOCAL_RANK = args.local_rank
