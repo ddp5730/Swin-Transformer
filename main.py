@@ -70,6 +70,9 @@ def parse_option():
     parser.add_argument('--transfer-dataset', action='store_true', help='Transfer the model to a new dataset')
     # TODO: See if TransFG modifies model in any other way when performing transfer
     # Doesn't look like it, but I'm not ready to rule it out yet.
+    parser.add_argument('--eval-period', type=int, default=-1, help='Number of epochs to train before evaluating '
+                                                                    'model performance.  -1 to evaluate after epoch '
+                                                                    'complete')
 
     # distributed training
     parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
@@ -154,7 +157,7 @@ def main(config):
         data_loader_train.sampler.set_epoch(epoch)
 
         lr, train_loss_avg = train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn,
-                                             lr_scheduler, writer)
+                                             lr_scheduler, data_loader_val, model_without_ddp)
         writer.add_scalar('Learning Rate', scalar_value=lr, global_step=epoch)
         writer.add_scalar('Training Loss', scalar_value=train_loss_avg, global_step=epoch)
         acc1, acc5, loss = validate(config, data_loader_val, model)
@@ -182,10 +185,11 @@ def print_top_epochs(validation_accuracy):
     for i in range(top_10_epochs.size):
         epoch_num = top_10_epochs[i]
         epoch_accuracy = validation_accuracy[epoch_num]
-        logger.info('Rank %d: Epoch: %d, Acc1: %.3f%%' % (i+1, epoch_num, epoch_accuracy))
+        logger.info('Rank %d: Epoch: %d, Acc1: %.3f%%' % (i + 1, epoch_num, epoch_accuracy))
 
 
-def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, writer):
+def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, data_loader_val,
+                    model_without_ddp):
     model.train()
     optimizer.zero_grad()
 
@@ -194,9 +198,14 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     loss_meter = AverageMeter()
     norm_meter = AverageMeter()
 
+    eval_time = 0
+    eval_num = 1
+    evaluation_accuracies = []
+
     start = time.time()
     end = time.time()
     for idx, (samples, targets) in enumerate(data_loader):
+        model.train()
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
@@ -262,8 +271,23 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'loss {loss_meter.val:.4f} ({loss_meter.avg:.4f})\t'
                 f'grad_norm {norm_meter.val:.4f} ({norm_meter.avg:.4f})\t'
                 f'mem {memory_used:.0f}MB')
-    epoch_time = time.time() - start
+
+        if config.TRAIN.EVAL_PERIOD != -1 and (idx + 1) % config.TRAIN.EVAL_PERIOD == 0:
+            eval_start = time.time()
+            acc1, acc5, loss = validate(config, data_loader_val, model)
+            evaluation_accuracies.append(acc1)
+            save_checkpoint(config, epoch, model_without_ddp, acc1, optimizer, lr_scheduler, logger, eval_num=eval_num)
+            eval_num += 1
+            eval_time += time.time() - eval_start
+
+    epoch_time = time.time() - start - eval_time
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
+    logger.info(f"EPOCH {epoch} evaluation takes {datetime.timedelta(seconds=int(eval_time))}")
+
+    if config.TRAIN.EVAL_PERIOD != -1:
+        for idx in range(len(evaluation_accuracies)):
+            logger.info('Eval %d Acc1: %.2f' % (idx + 1, evaluation_accuracies[idx]))
+
     return optimizer.param_groups[0]['lr'], loss_meter.avg
 
 
