@@ -134,3 +134,4 @@ dmypy.json
 # Training output
 saved_models/
 scripts/
+output
