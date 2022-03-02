@@ -114,13 +114,19 @@ def build_dataset(is_train, config):
         prefix = 'train' if is_train else 'validation'
         root = os.path.join(config.DATA.DATA_PATH, prefix)
         # RandomCrop vs Resize + Interpolation, etc.
-        dataset = datasets.ImageFolder(root, transform=transform)
+        if config.DATA.IDX_DATASET:
+            dataset = ImageFolder_idx(root, transform=transform)
+        else:
+            dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 3
     elif config.DATA.DATASET == 'rareplanes-real':
         prefix = 'train' if is_train else 'test'
         root = os.path.join(config.DATA.DATA_PATH, prefix)
         # RandomCrop vs Resize + Interpolation, etc.
-        dataset = datasets.ImageFolder(root, transform=transform)
+        if config.DATA.IDX_DATASET:
+            dataset = ImageFolder_idx(root, transform=transform)
+        else:
+            dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 3
     else:
         raise NotImplementedError("We only support ImageNet Now.")
@@ -166,3 +172,13 @@ def build_transform(is_train, config):
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
     return transforms.Compose(t)
+
+
+class ImageFolder_idx(datasets.ImageFolder):
+
+    def __getitem__(self, index):
+        return_val = super().__getitem__(index)
+        return_val = list(return_val)
+        return_val.append(index)
+        return_val = tuple(return_val)
+        return return_val
