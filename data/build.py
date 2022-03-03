@@ -122,6 +122,9 @@ def build_dataset(is_train, config):
         # RandomCrop vs Resize + Interpolation, etc.
         dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 3
+    elif config.DATA.DATASET == 'food-101':
+        dataset = datasets.ImageFolder(root=config.DATA.DATA_PATH, transform=transform)
+        nb_classes = 101
     else:
         raise NotImplementedError("We only support ImageNet Now.")
 
