@@ -123,7 +123,9 @@ def build_dataset(is_train, config):
         dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 3
     elif config.DATA.DATASET == 'food-101':
-        dataset = datasets.ImageFolder(root=config.DATA.DATA_PATH, transform=transform)
+        prefix = 'train' if is_train else 'test'
+        root = os.path.join(config.DATA.DATA_PATH, prefix)
+        dataset = datasets.ImageFolder(root=root, transform=transform)
         nb_classes = 101
     else:
         raise NotImplementedError("We only support ImageNet Now.")

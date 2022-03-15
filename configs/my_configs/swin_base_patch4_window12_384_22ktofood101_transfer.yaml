@@ -1,6 +1,7 @@
 DATA:
   DATASET: food-101
   IMG_SIZE: 384
+  NUM_WORKERS: 20
 MODEL:
   TYPE: swin
   NAME: swin_base_patch4_window12_384_22ktofood101_transfer
@@ -13,8 +14,8 @@ MODEL:
     NUM_HEADS: [ 4, 8, 16, 32 ]
     WINDOW_SIZE: 12
 TRAIN:
-  EPOCHS: 200
-  WARMUP_EPOCHS: 5
+  EPOCHS: 30
+  WARMUP_EPOCHS: 3
   WEIGHT_DECAY: 1e-8
   BASE_LR: 2e-04
   WARMUP_LR: 2e-07
