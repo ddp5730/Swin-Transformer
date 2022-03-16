@@ -1,0 +1,8 @@
+configs/
+data/
+figures/
+models/
+output/
+saved_models/
+scripts/
+utils/
