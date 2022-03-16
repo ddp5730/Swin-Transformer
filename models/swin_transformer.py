@@ -4,6 +4,7 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Ze Liu
 # --------------------------------------------------------
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
@@ -486,7 +487,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, **kwargs):
+                 use_checkpoint=False, get_embedding=False, **kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -537,6 +538,11 @@ class SwinTransformer(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
+        if get_embedding:
+            self.selected_out = OrderedDict()
+            self.hooks()
+        self.get_embedding = get_embedding
+
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -547,6 +553,11 @@ class SwinTransformer(nn.Module):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+
+    def hooks(self):
+        def hook(module, input, output):
+            self.selected_out['avgpool'] = output
+        self.avgpool.register_forward_hook(hook)
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -573,7 +584,10 @@ class SwinTransformer(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         x = self.head(x)
-        return x
+        if not self.get_embedding:
+            return x
+        else:
+            return x, self.selected_out['avgpool']
 
     def flops(self):
         flops = 0
