@@ -183,7 +183,7 @@ def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler,
             top_10_epochs = np.flip(np.argsort(validation_accuracy))[:top_n]
             for file in os.listdir(config.OUTPUT):
                 if 'ckpt_epoch' in file:
-                    eval_num = file[19:file.find('.')]
+                    eval_num = file[file.rfind('_') + 1:file.find('.')]
                     eval_num = int(eval_num)
                     if eval_num not in top_10_epochs:
                         os.remove(os.path.join(config.OUTPUT, file))
