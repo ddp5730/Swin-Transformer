@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from torch.ao.quantization.stubs import QuantStub, DeQuantStub
 
 
 class Mlp(nn.Module):
@@ -20,10 +21,16 @@ class Mlp(nn.Module):
         self.act = act_layer()
         self.fc2 = nn.Linear(hidden_features, out_features)
         self.drop = nn.Dropout(drop)
+        self.quant = QuantStub()
+        self.dequant = DeQuantStub()
 
     def forward(self, x):
         x = self.fc1(x)
+
+        x = self.dequant(x)
         x = self.act(x)
+        x = self.quant(x)
+
         x = self.drop(x)
         x = self.fc2(x)
         x = self.drop(x)
@@ -84,6 +91,9 @@ class WindowAttention(nn.Module):
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
+        self.ff = torch.nn.quantized.FloatFunctional()
+        self.quant = QuantStub()
+        self.dequant = DeQuantStub()
 
         # define a parameter table of relative position bias
         self.relative_position_bias_table = nn.Parameter(
@@ -120,8 +130,15 @@ class WindowAttention(nn.Module):
         qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        q = q * self.scale
+        q = self.ff.mul_scalar(q, self.scale)
+
+        # No easy way to do BMM operation with quantization.
+        # TODO
+        q = self.dequant(q)
+        k = self.dequant(k)
         attn = (q @ k.transpose(-2, -1))
+        q = self.quant(k)
+        k = self.quant(k)
 
         relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
             self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
@@ -138,7 +155,12 @@ class WindowAttention(nn.Module):
 
         attn = self.attn_drop(attn)
 
+        # TODO
+        attn = self.dequant(attn)
+        v = self.dequant(v)
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        x = self.quant(x)
+
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
@@ -194,6 +216,10 @@ class SwinTransformerBlock(nn.Module):
             self.shift_size = 0
             self.window_size = min(self.input_resolution)
         assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
+        self.ff = torch.nn.quantized.FloatFunctional()
+        self.quant = QuantStub()
+        self.dequant = DeQuantStub()
+
 
         self.norm1 = norm_layer(dim)
         self.attn = WindowAttention(
@@ -241,7 +267,10 @@ class SwinTransformerBlock(nn.Module):
 
         # cyclic shift
         if self.shift_size > 0:
+            x = self.dequant(x)
             shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
+            x = self.quant(x)
+            shifted_x = self.quant(shifted_x)
         else:
             shifted_x = x
 
@@ -258,14 +287,19 @@ class SwinTransformerBlock(nn.Module):
 
         # reverse cyclic shift
         if self.shift_size > 0:
+            shifted_x = self.dequant(shifted_x)
             x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
+            x = self.quant(x)
         else:
             x = shifted_x
         x = x.view(B, H * W, C)
 
         # FFN
-        x = shortcut + self.drop_path(x)
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        x = self.ff.add(shortcut, self.drop_path(x))
+        temp = self.norm2(x)
+        temp = self.mlp(temp)
+        temp = self.drop_path(temp)
+        x = self.ff.add(x, temp)
 
         return x
 
@@ -489,6 +523,9 @@ class SwinTransformer(nn.Module):
                  use_checkpoint=False, **kwargs):
         super().__init__()
 
+        self.quant = QuantStub()
+        self.dequant = DeQuantStub()
+
         self.num_classes = num_classes
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
@@ -571,8 +608,10 @@ class SwinTransformer(nn.Module):
         return x
 
     def forward(self, x):
+        x = self.quant(x)
         x = self.forward_features(x)
         x = self.head(x)
+        x = self.dequant(x)
         return x
 
     def flops(self):

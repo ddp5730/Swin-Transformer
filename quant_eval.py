@@ -29,6 +29,8 @@ from logger import create_logger
 from utils import load_checkpoint, load_pretrained, save_checkpoint, get_grad_norm, auto_resume_helper, reduce_tensor, \
     replace_fc_layer
 
+CALIBRATION_BATCHES = 2
+
 try:
     # noinspection PyUnresolvedReferences
     from apex import amp
@@ -87,9 +89,10 @@ def parse_option():
 def main(config):
     dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
 
+    device = 'cpu'
+
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)
-    model.cuda()
     logger.info(str(model))
 
     if config.TRAIN.TRANSFER_DATASET:
@@ -97,14 +100,34 @@ def main(config):
 
     if config.MODEL.PRETRAINED and (not config.MODEL.RESUME):
         load_pretrained(config, model, logger)
-    model.cuda()
+
+    print("Size of model before quantization")
+    print_size_of_model(model)
+
+    model.qconfig = torch.quantization.default_qconfig
+    print(model.qconfig)
+    # torch.quantization.fuse_modules(model, [['conv', 'relu']], inplace=True)
+    torch.quantization.prepare(model, inplace=True)
+
+    # Calibrate model on training data
+    validate(config, data_loader_val, model, calibration=True)
+
+    torch.quantization.convert(model, inplace=True)
+    print("Size of model after quantization")
+    print_size_of_model(model)
 
     acc1, acc5, loss = validate(config, data_loader_val, model)
     logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
 
 
+def print_size_of_model(model):
+    torch.save(model.state_dict(), "temp.p")
+    print('Size (MB):', os.path.getsize("temp.p") / 1e6)
+    os.remove('temp.p')
+
+
 @torch.no_grad()
-def validate(config, data_loader, model):
+def validate(config, data_loader, model, calibration=False):
     criterion = torch.nn.CrossEntropyLoss()
     model.eval()
 
@@ -115,8 +138,6 @@ def validate(config, data_loader, model):
 
     end = time.time()
     for idx, (images, target) in enumerate(data_loader):
-        images = images.cuda(non_blocking=True)
-        target = target.cuda(non_blocking=True)
 
         # compute output
         output = model(images)
@@ -125,9 +146,9 @@ def validate(config, data_loader, model):
         loss = criterion(output, target)
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
-        acc1 = reduce_tensor(acc1)
-        acc5 = reduce_tensor(acc5)
-        loss = reduce_tensor(loss)
+        # acc1 = reduce_tensor(acc1)
+        # acc5 = reduce_tensor(acc5)
+        # loss = reduce_tensor(loss)
 
         loss_meter.update(loss.item(), target.size(0))
         acc1_meter.update(acc1.item(), target.size(0))
@@ -136,6 +157,9 @@ def validate(config, data_loader, model):
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
+
+        if calibration and idx >=CALIBRATION_BATCHES:
+            break
 
         if idx % config.PRINT_FREQ == 0:
             memory_used = torch.cuda.max_memory_allocated() / (1024.0 * 1024.0)
