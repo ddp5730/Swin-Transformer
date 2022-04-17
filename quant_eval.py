@@ -29,7 +29,7 @@ from logger import create_logger
 from utils import load_checkpoint, load_pretrained, save_checkpoint, get_grad_norm, auto_resume_helper, reduce_tensor, \
     replace_fc_layer
 
-CALIBRATION_BATCHES = 2
+CALIBRATION_BATCHES = 100
 
 try:
     # noinspection PyUnresolvedReferences
@@ -101,28 +101,27 @@ def main(config):
     if config.MODEL.PRETRAINED and (not config.MODEL.RESUME):
         load_pretrained(config, model, logger)
 
-    print("Size of model before quantization")
-    print_size_of_model(model)
+    logger.info("Size of model before quantization")
+    print_size_of_model(model, logger)
 
     model.qconfig = torch.quantization.default_qconfig
-    print(model.qconfig)
-    # torch.quantization.fuse_modules(model, [['conv', 'relu']], inplace=True)
+    logger.info(model.qconfig)
     torch.quantization.prepare(model, inplace=True)
 
     # Calibrate model on training data
     validate(config, data_loader_val, model, calibration=True)
 
     torch.quantization.convert(model, inplace=True)
-    print("Size of model after quantization")
-    print_size_of_model(model)
+    logger.info("Size of model after quantization")
+    print_size_of_model(model, logger)
 
     acc1, acc5, loss = validate(config, data_loader_val, model)
     logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
 
 
-def print_size_of_model(model):
+def print_size_of_model(model, logger):
     torch.save(model.state_dict(), "temp.p")
-    print('Size (MB):', os.path.getsize("temp.p") / 1e6)
+    logger.info('Size (MB): %f' % (os.path.getsize("temp.p") / 1e6))
     os.remove('temp.p')
 
 

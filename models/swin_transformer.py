@@ -137,8 +137,7 @@ class WindowAttention(nn.Module):
         q = self.dequant(q)
         k = self.dequant(k)
         attn = (q @ k.transpose(-2, -1))
-        q = self.quant(k)
-        k = self.quant(k)
+        # attn = self.quant(attn)
 
         relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
             self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
@@ -156,7 +155,7 @@ class WindowAttention(nn.Module):
         attn = self.attn_drop(attn)
 
         # TODO
-        attn = self.dequant(attn)
+        # attn = self.dequant(attn)
         v = self.dequant(v)
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.quant(x)
@@ -269,7 +268,6 @@ class SwinTransformerBlock(nn.Module):
         if self.shift_size > 0:
             x = self.dequant(x)
             shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
-            x = self.quant(x)
             shifted_x = self.quant(shifted_x)
         else:
             shifted_x = x
