@@ -146,6 +146,15 @@ def build_dataset(is_train, config):
         else:
             dataset = datasets.ImageFolder(root, transform=transform)
         nb_classes = 6
+    elif config.DATA.DATASET == 'cub-200':
+        prefix = 'train' if is_train else 'val'
+        root = os.path.join(config.DATA.DATA_PATH, prefix)
+        # RandomCrop vs Resize + Interpolation, etc.
+        if config.DATA.IDX_DATASET:
+            dataset = ImageFolder_idx(root, transform=transform)
+        else:
+            dataset = datasets.ImageFolder(root, transform=transform)
+        nb_classes = 200
     else:
         raise NotImplementedError("We only support ImageNet Now.")
 
